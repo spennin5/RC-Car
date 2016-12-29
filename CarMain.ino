@@ -3,15 +3,17 @@
 #include "RF24.h"
 #include <Servo.h>
 Servo servo;
-RF24 radio(7,8);//changed first number to 9 for pin allocations
+RF24 radio(7,8);
 const int PACKETSIZE = 8;
 byte packet[PACKETSIZE]; //holds the data
-int radioChannel = 25;
-byte address[8] = {"30281"};
+int radioChannel = 25; //Must match receiver channel
+byte address[8] = {"30281"}; //Must match receiver address
 int buttonState;
-int buttonPin=A5;
-int piezoPin=A0;
-int ledPin=A1;
+
+int piezoPin = A0;
+int ledPin = A1;
+int laserPin = A3;
+int buttonPin = A5;
 bool pressed;
 Motor motor(2,4,3);
 Motor motor2(5,9,6);
@@ -19,7 +21,7 @@ int Power;
 int Differential;
 int leftPower;
 int rightPower;
-int laserPin=A3;
+
 void setup(){
   Serial.begin(115200);
   servo.attach(10);
@@ -28,8 +30,6 @@ void setup(){
   pinMode(A5,INPUT_PULLUP);
   pinMode(A2,OUTPUT);
   pinMode(laserPin,OUTPUT);
-  //digitalWrite(A2,HIGH);
-  //digitalWrite(A3,HIGH);
   radio.setChannel(radioChannel);
   radio.setPALevel(RF24_PA_HIGH);
   radio.openReadingPipe(1,address);
@@ -39,8 +39,7 @@ void setup(){
   
 void loop(){
   int piezoReading=analogRead(piezoPin);
-    if(radio.available()){
-    
+  if(radio.available()){
     int *intPacket= (int *)packet;
     radio.read(packet,8);
     if(intPacket[2]==0){
@@ -48,8 +47,8 @@ void loop(){
     }
     if(intPacket[2]==1){
       servo.write(0);
-    }
-  int brakingPower = map(intPacket[3],0,1023,0,255);
+  }
+  int laserPower = map(intPacket[3],0,1023,0,255);
   Serial.println("Braking power:"+brakingPower);
   Power= map(intPacket[0],0,1023,-255,255);
   Differential=map(intPacket[1],0,1023,-255,255);
@@ -61,18 +60,19 @@ void loop(){
   }
   buttonState=newButtonState;
   
-  if(leftPower<-10&&rightPower<-10){
+  if(leftPower<-10 && rightPower<-10){
     digitalWrite(A2,HIGH);
-    analogWrite(laserPin,brakingPower);
+    analogWrite(laserPin,laserPower);
   }
   else{
     digitalWrite(A2,LOW);
-    analogWrite(laserPin,brakingPower);
+    analogWrite(laserPin,laserPower);
   }
   delay(10);
   goCar();
   Serial.flush();
   }
+  //Turns on yellow LED if car collides with something
   if(piezoReading>=250){
     digitalWrite(ledPin,HIGH);
   }
@@ -81,7 +81,6 @@ void loop(){
   }
 }
 void goCar(){
-  
   if(pressed){
     motor.run(-(2*leftPower-1));
     motor2.run(-(2*rightPower-1));
